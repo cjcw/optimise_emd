@@ -172,6 +172,8 @@ def optimise_mask_freqs(Xs, sample_rate, freq_lim, freq_int, n_main_freqs, fixed
         [nIterations x len(Xs)]
     optimised_mask_freqs : ndarray
         1D array of the mask freqs which yeilded the lowest lossFunc score across Xs 
+    mainImfInds : ndarray
+        1D array of the indices corresponding to the IMFs which would be obtained by the non-fixed mask frequencies
     
     """
     
