@@ -1,6 +1,5 @@
 
 import numpy as np
-import ccwBaseFunctions as ccw
 from scipy import stats
 import emd
 import multiprocessing # needs to be imported explicitely
@@ -33,7 +32,7 @@ def get_modeMixScore(imf, imfUseInds):
 def run_subIteration(args):
     """ Randomly generates mask frequencies to apply mask-EMD to Xs and returns the 
     mask freqs and the mixing scores"""
-    Xs, fRanges, freqs0, n_main_freqs, fixed_mask_freqs, mask_args, imfUseInds, lossFunc, nprocesses = args
+    Xs, fRanges, freqs0, n_main_freqs, fixed_mask_freqs, mask_args, imfUseInds, sample_rate, lossFunc, nprocesses = args
     # randomly generate mask frequencies
     np.random.seed()
     if fRanges is None:
@@ -78,10 +77,10 @@ def run_subIteration(args):
     
 
 def run_iteration(fRanges, Xs, n_random, n_main_freqs, fixed_mask_freqs, 
-                  imfUseInds, freqs0, mask_args, lossFunc, nprocesses):
+                  imfUseInds, sample_rate, freqs0, mask_args, lossFunc, nprocesses):
     
     pool = MyPool(nprocesses)
-    args = (Xs, fRanges, freqs0, n_main_freqs, fixed_mask_freqs, mask_args, imfUseInds, lossFunc, nprocesses)
+    args = (Xs, fRanges, freqs0, n_main_freqs, fixed_mask_freqs, mask_args, imfUseInds, sample_rate, lossFunc, nprocesses)
     it_outputs = pool.map(run_subIteration, [args for i in range(n_random)])
     pool.close()
     pool.join()
@@ -171,7 +170,8 @@ def optimise_mask_freqs(Xs, sample_rate, freq_lim, freq_int, n_main_freqs, fixed
     it_mix_scores : ndarray
         [nIterations x len(Xs)]
     optimised_mask_freqs : ndarray
-        1D array of the mask freqs which yeilded the lowest lossFunc score across Xs 
+        1D array of the mask freqs which yeilded the lowest lossFunc score 
+        across Xs 
     mainImfInds : ndarray
         1D array of the indices corresponding to the IMFs which would be obtained by the non-fixed mask frequencies
     
@@ -206,17 +206,20 @@ def optimise_mask_freqs(Xs, sample_rate, freq_lim, freq_int, n_main_freqs, fixed
                                   top_n, mainImfInds)
         
         it_mask_freqs_, it_mix_scores_ = run_iteration(fRanges, Xs, n_random, n_main_freqs, fixed_mask_freqs, 
-                                                       imfUseInds, freqs0, mask_args, lossFunc, nprocesses)
+                                                       imfUseInds, sample_rate, freqs0, mask_args, lossFunc, nprocesses)
+        
         it_mix_scores.append(it_mix_scores_)
         it_mask_freqs.append(it_mask_freqs_)
         if opti and np.sum(np.subtract(fRanges[:,1], fRanges[:,0])) <= (n_main_freqs*freq_int): # if all freqs optimised
+            converged = True
             break
         elif opti == (max_iterations-1):
             print('Warning: optimisation did not converge. Consider increasing: max_iterations/n_random')
+            converged = False
     it_mask_freqs = np.row_stack(it_mask_freqs)
     it_mix_scores = np.row_stack(it_mix_scores)
     optimised_mask_freqs = it_mask_freqs[it_mix_scores.mean(axis=1).argmin()]
-    return it_mask_freqs, it_mix_scores, optimised_mask_freqs, mainImfInds
+    return it_mask_freqs, it_mix_scores, optimised_mask_freqs, mainImfInds, converged
 
 
 
@@ -237,7 +240,7 @@ if False:
 
 
 
-    it_mask_freqs, it_mix_scores, optimised_mask_freqs, mainImfInds = \
+    it_mask_freqs, it_mix_scores, optimised_mask_freqs, mainImfInds, converged = \
     optimise_mask_freqs(Xs, sample_rate, freq_lim, freq_int, n_main_freqs, fixed_mask_freqs, 
     top_n=top_n, n_random=n_random, nprocesses=nprocesses, max_iterations=max_iterations)
 
